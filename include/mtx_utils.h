@@ -1,11 +1,24 @@
 #ifndef __MTX_UTILS_H__
 #define __MTX_UTILS_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <math.h>
+
+typedef struct COO_matrix {
+  int nrows;
+  int ncols;
+  int nnz;
+  int* row_idx;
+  int* col_idx;
+  double* values;
+} COO_matrix;
 
 typedef struct CSR_matrix {
   int nrows;
@@ -16,13 +29,17 @@ typedef struct CSR_matrix {
   double* values;
 } CSR_matrix;
 
-void COO_to_CSR(int nrows, int ncols, int nnz,
-                 const int* row_coo, const int* col_coo,
-                 const double* values_coo,
-                 CSR_matrix* matrix);
+void read_COO_mtx(const char* filename, COO_matrix* matrix);
 
-void read_CSR_mtx(const char* filename, CSR_matrix* matrix);
+void COO_to_CSR(COO_matrix* coo_matrix, CSR_matrix* matrix);
 
-double* init_RandVector(int ncols);
+void init_RandVector(double* vec, int n);
 
+void print_mtx_stats(CSR_matrix* matrix);
+
+int build_coalesced_row_bins(const int *row_ptr, const int rows, int *bin_rows, int warp_size);
+
+#ifdef __cplusplus
+}
+#endif
 #endif // __MTX_UTILS_H__
