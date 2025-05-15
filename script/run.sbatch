@@ -12,6 +12,9 @@
 
 module load CUDA/12.1.1
 
-# srun ./bin/main ./mtx/nos2.mtx
-srun ./bin/main ./mtx/test.mtx
-# srun ./bin/tmp ../mtx/nos2.mtx
+EXEC=$1
+MTX_FILE=$2
+
+echo "Running $EXEC on matrix $MTX_FILE"
+
+srun ./bin/$EXEC $MTX_FILE
