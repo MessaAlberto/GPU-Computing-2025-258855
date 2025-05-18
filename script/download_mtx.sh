@@ -3,24 +3,25 @@
 mtx_dir="./mtx"
 
 links=(
+  "https://suitesparse-collection-website.herokuapp.com/MM/GHS_psdef/crankseg_1.tar.gz"
+  "https://suitesparse-collection-website.herokuapp.com/MM/McRae/ecology1.tar.gz"
+  "https://suitesparse-collection-website.herokuapp.com/MM/Koutsovasilis/F1.tar.gz"
+  "https://suitesparse-collection-website.herokuapp.com/MM/GHS_psdef/inline_1.tar.gz"
+  "https://suitesparse-collection-website.herokuapp.com/MM/MAWI/mawi_201512012345.tar.gz"
   "https://suitesparse-collection-website.herokuapp.com/MM/Schenk/nlpkkt200.tar.gz"
-  # "https://suitesparse-collection-website.herokuapp.com/MM/Koutsovasilis/F1.tar.gz"
-  # "https://suitesparse-collection-website.herokuapp.com/MM/SNAP/sx-stackoverflow.tar.gz"
-  # "https://suitesparse-collection-website.herokuapp.com/MM/GHS_psdef/inline_1.tar.gz"
-  # "https://suitesparse-collection-website.herokuapp.com/MM/Mycielski/mycielskian19.tar.gz"
-  # "https://suitesparse-collection-website.herokuapp.com/MM/Janna/Bump_2911.tar.gz"
-  # "https://suitesparse-collection-website.herokuapp.com/MM/GHS_psdef/crankseg_1.tar.gz"
-  # "https://suitesparse-collection-website.herokuapp.com/MM/McRae/ecology1.tar.gz"
-  # "https://suitesparse-collection-website.herokuapp.com/MM/HB/1138_bus.tar.gz"
-  # "https://suitesparse-collection-website.herokuapp.com/MM/HB/nos2.tar.gz"
-  # "https://suitesparse-collection-website.herokuapp.com/MM/HB/fs_541_3.tar.gz"
+  "https://suitesparse-collection-website.herokuapp.com/MM/SNAP/sx-stackoverflow.tar.gz"
 )
 
 for link in "${links[@]}"; do
   filename=$(basename "$link")
   foldername="${filename%%.*}"
+  expected_mtx="${foldername}.mtx"
+
+  echo "$filename"
+  echo "$foldername"
+  echo "$expected_mtx"
   
-  if [ ! -f "$filename" ]; then
+  if [ ! -f "$mtx_dir/$expected_mtx" ]; then
     echo "Downloading $filename..."
     wget "$link"
     if [ $? -ne 0 ]; then
@@ -28,7 +29,8 @@ for link in "${links[@]}"; do
       exit 1
     fi
   else
-    echo "$filename already exists, skipping download."
+    echo "$mtx_dir/$expected_mtx already exists, skipping download."
+    continue
   fi
 
   # Decompress the file
@@ -57,7 +59,7 @@ for link in "${links[@]}"; do
   if [ -d "$foldername" ]; then
     echo "Moving files to $mtx_dir..."
     mkdir -p "$mtx_dir"
-    mv "$foldername"/* "$mtx_dir"/
+    mv "$foldername/$foldername.mtx" "$mtx_dir"/
     rm -rf "$foldername"
   else
     echo "No files to move from $foldername."
