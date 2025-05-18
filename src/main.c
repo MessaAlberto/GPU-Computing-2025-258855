@@ -116,11 +116,11 @@ int main(int argc, char** argv) {
     TIMER_DEF(0);
     TIMER_START(0);
 
-  #ifdef USE_OPTIM
+    #ifdef USE_OPTIM
       do_SpMV_cache_optimised(&matrix, vec, result);
-  #else
+    #else
       do_SpMV(&matrix, vec, result);
-  #endif
+    #endif
 
     TIMER_STOP(0);
     times[i] = TIMER_ELAPSED(0) / 1.e6;  // Convert to seconds
@@ -131,10 +131,14 @@ int main(int argc, char** argv) {
   float flopCount = 2 * matrix.nnz;  // 2 flops per non-zero entry: multiply and add
   float gflops = calculate_GFlops(flopCount, meanTime);
 
-  size_t readedBytes = matrix.nnz * (sizeof(int) + sizeof(double)) +  // col_idx and values
-                       (matrix.nrows + 1) * sizeof(int) +             // row_ptr
-                       matrix.ncols * sizeof(double);                 // vec
-  size_t writtenBytes = matrix.nrows * sizeof(double);                // result
+  // Bandwidth calculation based on the worst-case scenario
+  // Just global memory accesses - no shared memory, no cache, no coalescing
+  int Bd = sizeof(double); // 8 bytes
+  int Bi = sizeof(int);    // 4 bytes
+
+  size_t readedBytes = matrix.nnz * (Bi + Bd + Bi) +  // col_idx, values, vec
+                       (matrix.nrows + 1) * Bi;       // row_ptr
+  size_t writtenBytes = matrix.nrows * Bd;  // result
 
   size_t totalBytes = readedBytes + writtenBytes;
   float bandwidth = (float)totalBytes / (meanTime * 1e9);  // GB/s

@@ -59,6 +59,9 @@ download:
 test:
 	./script/submit_all.sh
 
+test_block:
+	./script/submit_blocksize.sh
+
 clean:
 	rm -rf $(BIN_FOLDER) $(OUT_FOLDER) $(ERR_FOLDER) $(OBJ_FOLDER)
 

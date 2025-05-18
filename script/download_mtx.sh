@@ -8,7 +8,6 @@ links=(
   "https://suitesparse-collection-website.herokuapp.com/MM/Koutsovasilis/F1.tar.gz"
   "https://suitesparse-collection-website.herokuapp.com/MM/GHS_psdef/inline_1.tar.gz"
   "https://suitesparse-collection-website.herokuapp.com/MM/MAWI/mawi_201512012345.tar.gz"
-  "https://suitesparse-collection-website.herokuapp.com/MM/Schenk/nlpkkt200.tar.gz"
   "https://suitesparse-collection-website.herokuapp.com/MM/SNAP/sx-stackoverflow.tar.gz"
 )
 

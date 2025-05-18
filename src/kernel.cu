@@ -23,7 +23,7 @@
   #define KERNEL_NAME "SpMV_Hybrid"
   #define KERNEL_PARAMS                                                                   \
     matrix.nrows, matrix.row_ptr, matrix.col_idx, matrix.values, vec, result, short_rows, \
-    long_rows, num_short_rows, num_long_rows
+    long_rows, num_short_rows, num_short_rows_padded, num_long_rows
 #endif
 
 #define CUDA_CHECK_KERNEL()                                         \
@@ -110,10 +110,11 @@ __global__ void SpMV_coalescedBins(const int num_bins, const int *row_ptr, const
 __global__ void SpMV_Hybrid(const int rows, const int *row_ptr, const int *col_idx,
                             const double *values, const double *vec, double *result,
                             const int *short_rows, const int *long_rows, int num_short_rows,
-                            int num_long_rows) {
+                            int num_short_rows_padded, int num_long_rows) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
 
   if (tid < num_short_rows) {
+    // One thread per short row
     int row = short_rows[tid];
     int start = row_ptr[row];
     int end = row_ptr[row + 1];
@@ -123,8 +124,12 @@ __global__ void SpMV_Hybrid(const int rows, const int *row_ptr, const int *col_i
       sum += values[j] * __ldg(&vec[col_idx[j]]);
     }
     result[row] = sum;
+  } else if (tid < num_short_rows_padded) {
+    // Padding for short rows
+    return;
   } else {
-    tid = tid - num_short_rows;
+    // One warp per long row
+    tid = tid - num_short_rows_padded;
     int warp_id = tid / WARP_SIZE;
     int lane_id = tid % WARP_SIZE;
 
@@ -271,6 +276,7 @@ int main(int argc, char **argv) {
     }
     cudaDeviceSynchronize();
 
+    int num_short_rows_padded = ((num_short_rows + 31) / 32) * 32;
     int total_threads = num_short_rows + num_long_rows * WARP_SIZE;
     gridDim = (total_threads + BLOCK_DIM - 1) / BLOCK_DIM;
   #endif
@@ -310,23 +316,31 @@ int main(int argc, char **argv) {
     times[i] = ms * 1e-3;  // Convert to seconds
   }
 
-  // Print results
+  // Calculate results
   float meanTime = arithmetic_mean(times, REP);
   float flopCount = 2.0 * matrix.nnz;
   float gflops = calculate_GFlops(flopCount, meanTime);
 
-  size_t readedBytes = matrix.nnz * (sizeof(int) + sizeof(double)) +  // col_idx and values
-                       (matrix.nrows + 1) * sizeof(int) +             // row_ptr
-                       matrix.ncols * sizeof(double);                 // vec
+  // Bandwidth calculation based on the worst-case scenario
+  // Just global memory accesses - no shared memory, no cache, no coalescing
+  int Bd = sizeof(double); // 8 bytes
+  int Bi = sizeof(int);    // 4 bytes
+
+  size_t readedBytes = matrix.nrows * (Bi + Bi) +    // row_ptr[rows] and row_ptr[rows + 1]
+                       matrix.nnz * (Bi + Bd + Bi);  // col_idx, values, and vec
+
+  size_t writtenBytes = matrix.nrows * Bd;  // result
 
   #if SELECT_KERNEL == 3
-    readedBytes += (matrix.nrows + 1) * sizeof(int);  // bin_rows
+    readedBytes += (matrix.nrows + 1) * Bi +  // bin_rows
+                   matrix.nnz * Bi;           // extra row_ptr reads due to while loop
+    writtenBytes = matrix.nnz * Bd;  // result, worst-case atomicAdd for each nnz
+
   #elif SELECT_KERNEL == 4
-    readedBytes += num_short_rows * sizeof(int);  // short_rows
-    readedBytes += num_long_rows * sizeof(int);   // long_rows
+    readedBytes += num_short_rows * Bi +  // short_rows
+                   num_long_rows * Bi;    // long_rows
   #endif
 
-  size_t writtenBytes = matrix.nrows * sizeof(double);  // result
   size_t totalBytes = readedBytes + writtenBytes;
   float bandwidth = (float)totalBytes / (meanTime * 1e9);  // GB/s
 
