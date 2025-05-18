@@ -3,6 +3,24 @@
 This project is developed as part of the **GPU Computing** course (2024-2025) taught by **Professor Flavio Vella** at the **University of Trento**.  
 It focuses on implementing and evaluating a GPU-based **Sparse Matrix-Vector multiplication (SpMV)** using **global memory optimization techniques**.
 
+## Project Structure
+
+```text
+├── mtx/                # Downloaded matrix files (MTX format)
+├── src/                # Source code (main.c, kernel.cu)
+├── lib/                # Support library source files
+├── include/            # Header files
+├── script/
+│   ├── download_mtx.sh
+│   ├── submit_all.sh
+│   └── run.sbatch
+├── Makefile
+├── README.md
+└── report.pdf
+```
+
+---
+
 ## How to Run the Project
 
 ### 1. Download Test Matrices
@@ -43,18 +61,20 @@ Each GPU kernel implements a different global memory optimization strategy.
 
 To run all tests on all available `.mtx` files, use:
 
-~~~bash
+```bash
 make test
-~~~
+```
 
 This command executes the `script/submit_all.sh` script, which performs the following steps:
 - Iterates over every matrix file in the `mtx/` directory.
-- For each matrix, it launches all compiled executables (`main`, `opt_main`, `kernel_v1` to `kernel_v4`).
-- Submits each test job using `sbatch`, via a shared SLURM script: `script/run.sbatch`.
+- For each matrix, it launches all compiled executables:
+  - `main` and `opt_main` (CPU-based)
+  - `kernel_v1` to `kernel_v4` (GPU-based)
+- Submits each test job using `sbatch`, via the appropriate SLURM script depending on the executable type.
 
-The `run.sbatch` file includes job scheduling directives and defines how the executable is launched on the HPC system:
+Below is an example of the GPU job submission script `script/run_gpu.sbatch`:
 
-~~~bash
+```bash
 #!/bin/bash
 
 #SBATCH --partition=edu-short
@@ -64,7 +84,7 @@ The `run.sbatch` file includes job scheduling directives and defines how the exe
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=1
 #SBATCH --time=00:05:00
-#SBATCH --job-name=test
+#SBATCH --job-name=test-gpu
 #SBATCH --output=output/test-%j.out
 #SBATCH --error=output_err/test-%j.err
 
@@ -74,29 +94,9 @@ EXEC=$1
 MTX_FILE=$2
 
 srun ./bin/$EXEC $MTX_FILE
-~~~
-
-All scripts, including `submit_all.sh` and `run.sbatch`, are located in the `script/` folder.
-
-This system ensures consistent, parallelized testing and performance data collection.
-
----
-
-## Project Structure
-
-```text
-├── mtx/                # Downloaded matrix files (MTX format)
-├── src/                # Source code (main.c, kernel.cu)
-├── lib/                # Support library source files
-├── include/            # Header files
-├── script/
-│   ├── download_mtx.sh
-│   ├── submit_all.sh
-│   └── run.sbatch
-├── Makefile
-├── README.md
-└── report.pdf
 ```
+
+All scripts, including `submit_all.sh` and `run_gpu.sbatch`, are located in the `script/` folder.
 
 ---
 
