@@ -35,7 +35,6 @@
     }                                                               \
   } while (0)
 
-#define BLOCK_DIM 256
 #define WARP_SIZE 32
 
 // ******************************
@@ -158,9 +157,15 @@ __global__ void SpMV_Hybrid(const int rows, const int *row_ptr, const int *col_i
 // ******************************
 
 int main(int argc, char **argv) {
-  if (argc != 2) {
-    printf("Usage: %s <matrix_file>\n", argv[0]);
+  if (argc != 3) {
+    printf("Usage: %s <matrix_file> <block_dim>\n", argv[0]);
     return -1;
+  }
+
+  int BLOCK_DIM = atoi(argv[2]);
+  if (BLOCK_DIM <= 0 || BLOCK_DIM > 1024) {
+    fprintf(stderr, "Error: Invalid block dimension. Must be between 1 and 1024.\n");
+    return 1;
   }
 
   int device = -1;
@@ -282,7 +287,8 @@ int main(int argc, char **argv) {
   #endif
 
   printf("Using kernel: \t\t%s\n", KERNEL_NAME);
-  printf("Using matrix: \t\t%s\n\n", argv[1]);
+  printf("Using matrix: \t\t%s\n", argv[1]);
+  printf("Using block size: \t%d\n\n", BLOCK_DIM);
   print_mtx_stats(&matrix);
   fflush(stdout);
 
