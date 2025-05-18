@@ -137,7 +137,7 @@ void print_mtx_stats(CSR_matrix* matrix) {
   printf("\n");
 }
 
-int build_coalesced_row_bins(const int *row_ptr, const int rows, int *bin_rows, int warp_size) {
+int build_coalesced_row_bins(const int* row_ptr, const int rows, int* bin_rows, int warp_size) {
   int bin_nnz_target = warp_size * 2;
   int num_bins = 0;
   int nnz_count = 0;
@@ -162,40 +162,17 @@ int build_coalesced_row_bins(const int *row_ptr, const int rows, int *bin_rows, 
   return num_bins;
 }
 
-// int build_coalesced_row_bins(const int *row_ptr, const int rows, int *bin_rows, int warp_size) {
-//   int max_row_per_bin = warp_size * 3;
-//   int num_bins = 0;
-//   int nnz_count = 0;
-//   int target_size = warp_size;
-//   bin_rows[0] = 0;
+void classify_rows(int* row_ptr, int rows, int* short_rows, int* long_rows, int* short_count, int* long_count, int threshold) {
+  *short_count = 0;
+  *long_count = 0;
 
-//   for (int i = 0; i < rows; i++) {
-//     int nnz_in_row = row_ptr[i + 1] - row_ptr[i];
+  for (int i = 0; i < rows; ++i) {
+    int nnz = row_ptr[i + 1] - row_ptr[i];
 
-//     if (nnz_count >= max_row_per_bin || nnz_count + nnz_in_row > max_row_per_bin) {
-//       num_bins++;
-//       bin_rows[num_bins] = i;
-//       nnz_count = 0;
-//       target_size = warp_size;
-//     }
-
-//     nnz_count += nnz_in_row;
-
-//     if (nnz_count >= warp_size) {
-//       if (nnz_count % target_size == 0 || nnz_count >= max_row_per_bin) {
-//         num_bins++;
-//         bin_rows[num_bins] = i + 1;
-//         nnz_count = 0;
-//         target_size = warp_size;
-//       } else {
-//         target_size = ((nnz_count / warp_size) + 1) * warp_size;
-//       }
-//     }
-//   }
-//   if (bin_rows[num_bins] != rows) {
-//     num_bins++;
-//     bin_rows[num_bins] = rows;
-//   }
-
-//   return num_bins;
-// }
+    if (nnz < threshold) {
+      short_rows[(*short_count)++] = i;
+    } else {
+      long_rows[(*long_count)++] = i;
+    }
+  }
+}

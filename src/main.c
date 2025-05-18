@@ -39,7 +39,6 @@ void do_SpMV_cache_optimised(const CSR_matrix* matrix, const double* vec, double
 }
 
 int main(int argc, char** argv) {
-
   if (argc < 2) {
     fprintf(stderr, "Usage: %s <matrix_file>\n", argv[0]);
     return 1;
@@ -98,11 +97,11 @@ int main(int argc, char** argv) {
 
   // Warm-up phase
   for (int i = 0; i < WARM_UP; i++) {
-    #ifdef USE_OPTIM
+  #ifdef USE_OPTIM
       do_SpMV_cache_optimised(&matrix, vec, result);
-    #else
+  #else
       do_SpMV(&matrix, vec, result);
-    #endif
+  #endif
 
     // Check the result
     if (i == 0) {
@@ -116,24 +115,34 @@ int main(int argc, char** argv) {
   for (int i = 0; i < REP; i++) {
     TIMER_DEF(0);
     TIMER_START(0);
-    
-    #ifdef USE_OPTIM
+
+  #ifdef USE_OPTIM
       do_SpMV_cache_optimised(&matrix, vec, result);
-    #else
+  #else
       do_SpMV(&matrix, vec, result);
-    #endif
-    
+  #endif
+
     TIMER_STOP(0);
-    times[i] = TIMER_ELAPSED(0) / 1.e6; // Convert to seconds
+    times[i] = TIMER_ELAPSED(0) / 1.e6;  // Convert to seconds
   }
 
   // Print the results
   float meanTime = arithmetic_mean(times, REP);
-  float flopCount = 2 * matrix.nnz; // 2 flops per non-zero entry: multiply and add
+  float flopCount = 2 * matrix.nnz;  // 2 flops per non-zero entry: multiply and add
   float gflops = calculate_GFlops(flopCount, meanTime);
-  printf("Final result: %f\n", finalResult);
-  printf("Mean time: %f seconds\n", meanTime);
+
+  size_t readedBytes = matrix.nnz * (sizeof(int) + sizeof(double)) +  // col_idx and values
+                       (matrix.nrows + 1) * sizeof(int) +             // row_ptr
+                       matrix.ncols * sizeof(double);                 // vec
+  size_t writtenBytes = matrix.nrows * sizeof(double);                // result
+
+  size_t totalBytes = readedBytes + writtenBytes;
+  float bandwidth = (float)totalBytes / (meanTime * 1e9);  // GB/s
+
+  printf("Sum of resulting vector: %f\n", finalResult);
+  printf("Mean time: %f ms\n", meanTime * 1e3);
   printf("GFlops: %f\n", gflops);
+  printf("Bandwidth: %f GB/s\n", bandwidth);
 
   // Free allocated memory
   free(matrix.row_ptr);
@@ -141,6 +150,6 @@ int main(int argc, char** argv) {
   free(matrix.values);
   free(vec);
   free(result);
-  
+
   return 0;
 }

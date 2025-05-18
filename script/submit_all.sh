@@ -9,7 +9,7 @@ for matrix in "$MTX_DIR"/*.mtx; do
   sbatch script/run.sbatch main "$matrix"
   sbatch script/run.sbatch opt_main "$matrix"
 
-  for i in {1..3}; do
+  for i in {1..4}; do
     sbatch script/run.sbatch kernel_v"$i" "$matrix"
   done
 done

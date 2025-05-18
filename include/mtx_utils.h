@@ -37,7 +37,9 @@ void init_RandVector(double* vec, int n);
 
 void print_mtx_stats(CSR_matrix* matrix);
 
-int build_coalesced_row_bins(const int *row_ptr, const int rows, int *bin_rows, int warp_size);
+int build_coalesced_row_bins(const int* row_ptr, const int rows, int* bin_rows, int warp_size);
+
+void classify_rows(int* row_ptr, int rows, int* short_rows, int* long_rows, int* short_count, int* long_count, int threshold);
 
 #ifdef __cplusplus
 }

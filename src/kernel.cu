@@ -2,7 +2,7 @@
 #include "../include/test_utils.h"
 
 #ifndef SELECT_KERNEL
-  #error "Please define SELECT_KERNEL to select the kernel to use."
+#error "Please define SELECT_KERNEL to select the kernel to use."
 #endif
 
 #if SELECT_KERNEL == 1
@@ -16,7 +16,14 @@
 #elif SELECT_KERNEL == 3
   #define KERNEL SpMV_coalescedBins
   #define KERNEL_NAME "SpMV_coalescedBins"
-  #define KERNEL_PARAMS matrix.nrows, matrix.row_ptr, matrix.col_idx, matrix.values, vec, result, bin_rows
+  #define KERNEL_PARAMS \
+    matrix.nrows, matrix.row_ptr, matrix.col_idx, matrix.values, vec, result, bin_rows
+#elif SELECT_KERNEL == 4
+  #define KERNEL SpMV_Hybrid
+  #define KERNEL_NAME "SpMV_Hybrid"
+  #define KERNEL_PARAMS                                                                   \
+    matrix.nrows, matrix.row_ptr, matrix.col_idx, matrix.values, vec, result, short_rows, \
+    long_rows, num_short_rows, num_long_rows
 #endif
 
 #define CUDA_CHECK_KERNEL()                                         \
@@ -28,8 +35,12 @@
     }                                                               \
   } while (0)
 
-#define BLOCK_SIZE 256
+#define BLOCK_DIM 256
 #define WARP_SIZE 32
+
+// ******************************
+// *     Kernel Definitions     *
+// ******************************
 
 __global__ void SpMV_OneThreadPerRow(const int rows, const int *row_ptr, const int *col_idx,
                                      const double *values, const double *vec, double *result) {
@@ -95,6 +106,51 @@ __global__ void SpMV_coalescedBins(const int num_bins, const int *row_ptr, const
     atomicAdd(&result[row], val);
   }
 }
+
+__global__ void SpMV_Hybrid(const int rows, const int *row_ptr, const int *col_idx,
+                            const double *values, const double *vec, double *result,
+                            const int *short_rows, const int *long_rows, int num_short_rows,
+                            int num_long_rows) {
+  int tid = threadIdx.x + blockIdx.x * blockDim.x;
+
+  if (tid < num_short_rows) {
+    int row = short_rows[tid];
+    int start = row_ptr[row];
+    int end = row_ptr[row + 1];
+    double sum = 0.0;
+
+    for (int j = start; j < end; j++) {
+      sum += values[j] * __ldg(&vec[col_idx[j]]);
+    }
+    result[row] = sum;
+  } else {
+    tid = tid - num_short_rows;
+    int warp_id = tid / WARP_SIZE;
+    int lane_id = tid % WARP_SIZE;
+
+    if (warp_id < num_long_rows) {
+      int row = long_rows[warp_id];
+      int start = row_ptr[row];
+      int end = row_ptr[row + 1];
+      double sum = 0.0;
+
+      for (int j = start + lane_id; j < end; j += WARP_SIZE) {
+        sum += values[j] * __ldg(&vec[col_idx[j]]);
+      }
+
+      for (int offset = 16; offset > 0; offset /= 2) {
+        sum += __shfl_down_sync(0xFFFFFFFF, sum, offset);
+      }
+      if (lane_id == 0) {
+        result[row] = sum;
+      }
+    }
+  }
+}
+
+// ******************************
+// *       Main Function        *
+// ******************************
 
 int main(int argc, char **argv) {
   if (argc != 2) {
@@ -164,26 +220,18 @@ int main(int argc, char **argv) {
   cudaDeviceSynchronize();
 
   // Based on the selected kernel, set the number of blocks and threads
+  int gridDim = 0;
   #if SELECT_KERNEL == 1
-    int numBlocks = (matrix.nrows + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    gridDim = (matrix.nrows + BLOCK_DIM - 1) / BLOCK_DIM;
 
   #elif SELECT_KERNEL == 2
-    int numBlocks = ((matrix.nrows * WARP_SIZE) + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    gridDim = ((matrix.nrows * WARP_SIZE) + BLOCK_DIM - 1) / BLOCK_DIM;
 
   #elif SELECT_KERNEL == 3
     int *host_bin_rows = (int *)malloc((matrix.nrows + 1) * sizeof(int));
     int num_bins =
         build_coalesced_row_bins(matrix.row_ptr, matrix.nrows, host_bin_rows, WARP_SIZE);
 
-    printf("Number of bins: %d\n", num_bins);
-    for (int i = 0; i < 20; i++) {
-      int start_row = host_bin_rows[i];
-      int end_row = host_bin_rows[i + 1];
-      int rows_in_bin = end_row - start_row;
-      int nnz_in_bin = matrix.row_ptr[end_row] - matrix.row_ptr[start_row];
-      printf("Bin %d: %d rows, %d NNZ\n", i, rows_in_bin, nnz_in_bin);
-    }
-    
     int *bin_rows = NULL;
     cudaMallocManaged(&bin_rows, (num_bins + 1) * sizeof(int));
     cudaMemcpy(bin_rows, host_bin_rows, (num_bins + 1) * sizeof(int), cudaMemcpyHostToDevice);
@@ -191,20 +239,50 @@ int main(int argc, char **argv) {
 
     cudaMemPrefetchAsync(bin_rows, (num_bins + 1) * sizeof(int), device);
     cudaDeviceSynchronize();
-    
-    int numBlocks = ((num_bins * WARP_SIZE) + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+    gridDim = ((num_bins * WARP_SIZE) + BLOCK_DIM - 1) / BLOCK_DIM;
+
+  #elif SELECT_KERNEL == 4
+    int *host_short_rows = (int *)malloc(matrix.nrows * sizeof(int));
+    int *host_long_rows = (int *)malloc(matrix.nrows * sizeof(int));
+    int num_short_rows = 0, num_long_rows = 0;
+
+    classify_rows(matrix.row_ptr, matrix.nrows,
+                  host_short_rows, host_long_rows,
+                  &num_short_rows, &num_long_rows,
+                  WARP_SIZE * 2);
+
+    int *short_rows = NULL, *long_rows = NULL;
+
+    cudaMallocManaged(&short_rows, (num_short_rows > 0 ? num_short_rows : 1) * sizeof(int));
+    cudaMemcpy(short_rows, host_short_rows, num_short_rows * sizeof(int), cudaMemcpyHostToDevice);
+
+    cudaMallocManaged(&long_rows, (num_long_rows > 0 ? num_long_rows : 1) * sizeof(int));
+    cudaMemcpy(long_rows, host_long_rows, num_long_rows * sizeof(int), cudaMemcpyHostToDevice);
+
+    free(host_short_rows);
+    free(host_long_rows);
+
+    if (num_short_rows > 0) {
+      cudaMemPrefetchAsync(short_rows, num_short_rows * sizeof(int), device);
+    }
+    if (num_long_rows > 0) {
+      cudaMemPrefetchAsync(long_rows, num_long_rows * sizeof(int), device);
+    }
+    cudaDeviceSynchronize();
+
+    int total_threads = num_short_rows + num_long_rows * WARP_SIZE;
+    gridDim = (total_threads + BLOCK_DIM - 1) / BLOCK_DIM;
   #endif
 
   printf("Using kernel: \t\t%s\n", KERNEL_NAME);
   printf("Using matrix: \t\t%s\n\n", argv[1]);
   print_mtx_stats(&matrix);
-
-  printf("Blocks: %d, Threads per block: %d\n", numBlocks, BLOCK_SIZE);
   fflush(stdout);
 
   // Warm up
   for (int i = 0; i < WARM_UP; i++) {
-    KERNEL<<<numBlocks, BLOCK_SIZE>>>(KERNEL_PARAMS);
+    KERNEL<<<gridDim, BLOCK_DIM>>>(KERNEL_PARAMS);
     cudaDeviceSynchronize();
 
     CUDA_CHECK_KERNEL();
@@ -220,23 +298,42 @@ int main(int argc, char **argv) {
   for (int i = 0; i < REP; i++) {
     cudaEventRecord(start);
 
-    KERNEL<<<numBlocks, BLOCK_SIZE>>>(KERNEL_PARAMS);
+    KERNEL<<<gridDim, BLOCK_DIM>>>(KERNEL_PARAMS);
 
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
 
     CUDA_CHECK_KERNEL();
 
-    cudaEventElapsedTime(times + i, start, stop);
+    float ms;
+    cudaEventElapsedTime(&ms, start, stop);
+    times[i] = ms * 1e-3;  // Convert to seconds
   }
 
   // Print results
   float meanTime = arithmetic_mean(times, REP);
   float flopCount = 2.0 * matrix.nnz;
   float gflops = calculate_GFlops(flopCount, meanTime);
-  printf("Final result: %f\n", finalResult);
-  printf("Mean time: %f seconds\n", meanTime);
+
+  size_t readedBytes = matrix.nnz * (sizeof(int) + sizeof(double)) +  // col_idx and values
+                       (matrix.nrows + 1) * sizeof(int) +             // row_ptr
+                       matrix.ncols * sizeof(double);                 // vec
+
+  #if SELECT_KERNEL == 3
+    readedBytes += (matrix.nrows + 1) * sizeof(int);  // bin_rows
+  #elif SELECT_KERNEL == 4
+    readedBytes += num_short_rows * sizeof(int);  // short_rows
+    readedBytes += num_long_rows * sizeof(int);   // long_rows
+  #endif
+
+  size_t writtenBytes = matrix.nrows * sizeof(double);  // result
+  size_t totalBytes = readedBytes + writtenBytes;
+  float bandwidth = (float)totalBytes / (meanTime * 1e9);  // GB/s
+
+  printf("Sum of resulting vector: %f\n", finalResult);
+  printf("Mean time: %f ms\n", meanTime * 1e3);
   printf("GFlops: %f\n", gflops);
+  printf("Bandwidth: %f GB/s\n", bandwidth);
 
   // Free memory
   cudaFree(matrix.row_ptr);

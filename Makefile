@@ -22,7 +22,7 @@ KERNEL_SRC := $(SRC_FOLDER)/kernel.cu
 LIB_SRC := $(wildcard $(LIB_FOLDER)/*.c)
 LIB_OBJ := $(patsubst $(LIB_FOLDER)/%.c, $(OBJ_FOLDER)/%.o, $(LIB_SRC))
 
-KERNEL_VERSIONS := 1 2 3
+KERNEL_VERSIONS := 1 2 3 4
 
 MAIN_BIN := $(BIN_FOLDER)/main
 OPT_MAIN_BIN := $(BIN_FOLDER)/opt_main
