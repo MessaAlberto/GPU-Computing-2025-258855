@@ -17,7 +17,8 @@ The focus of this deliverable is on implementing and evaluating a GPU-based **Sp
 │   └── run.sbatch
 ├── py/
 │   ├── analyze_blocksize_effect.py # Analyze block size effect
-│   └── compare_spmv_methods.py     # Compare SpMV on CPU and GPU kernels
+│   ├── comp_results.py             # Compare SpMV on CPU and GPU kernels
+│   └── generate_csv.py             # Generate CSV files from output/
 ├── Makefile
 ├── README.md
 └── report.pdf
@@ -96,7 +97,7 @@ Below is an example of the GPU SLURM submission script `script/run_gpu.sbatch` u
 #SBATCH --nodelist=edu01
 #SBATCH --nodes=1
 #SBATCH --tasks=1
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:a30.24:1
 #SBATCH --cpus-per-task=1
 #SBATCH --time=00:05:00
 #SBATCH --job-name=test-gpu
@@ -118,34 +119,38 @@ All submission and SLURM scripts are located in the `script/` folder.
 
 ## Plotting Results
 
-After running tests, you can generate performance plots using the Python scripts in `py/`:
+After running tests, you can generate performance plots using the Python scripts in `py/`.
 
-- Load a Python environment e.g., on the cluster or transfer to your local machine
+1. Make sure you have a Python environment ready, either on the cluster or locally.
 
-- If you ran
-  ```bash
-  make test
-  ```
-  run from the root directory:
-  ```bash
-  python3 py/compare_spmv_methods.py
-  ```
-  This plots comparisons across all matrices.
+2. Run the test(s) you want:
+   ```bash
+   make test # standard kernel tests
+   make test_block # block-size variation tests
+   ```
 
-- If you ran
-  ```bash
-  make test_block
-  ```
-  run from the root directory:
-  ```bash
-  python3 py/analyze_blocksize_effect.py
-  ```
-  This plots bandwidth vs block size for the selected matrix.
+3. After each test, generate the CSV from the raw output:
+   ```bash
+   python3 py/generate_csv.py
+   ```
+   This creates `results.csv` in the `results/` directory.
 
-Both scripts read output data from the `output/` directory.  
-**Ensure the `output/` folder contains the correct `.out` files before running these scripts.**
+4. Generate the plots:
+   - For standard kernel results:
+   ```bash
+   python3 py/comp_results.py
+   ```
+   This plots execution time, GFLOPS, and bandwidth across all matrices.
+   
+   - For block-size analysis:
+   ```bash
+   python3 py/analyze_blocksize_effect.py
+   ```
+   This plots bandwidth vs block size for the selected matrix.
 
-Generated plots are saved to the `./img/` directory.
+5. Ensure the `output/` folder contains the correct `.out` files before running these scripts.
+   
+All generated plots are saved in the `./results/` directory.
 
 ---
 

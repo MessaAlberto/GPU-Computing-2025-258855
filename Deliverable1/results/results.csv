@@ -1,0 +1,37 @@
+filename,method,matrix,block_size,mean_time_ms,gflops,bandwidth_gbps
+test-60804.out,naive CPU,crankseg_1.mtx,,6.1397,3.474767,14.002273
+test-60805.out,optimized CPU,crankseg_1.mtx,,5.969299,3.573958,14.401985
+test-60817.out,optimized CPU,F1.mtx,,15.6017,3.484352,14.201833
+test-60822.out,naive CPU,inline_1.mtx,,20.180602,3.698607,15.09395
+test-60810.out,naive CPU,ecology1.mtx,,3.8388,3.123893,15.62155
+test-60811.out,optimized CPU,ecology1.mtx,,3.572,3.357223,16.788355
+test-60823.out,optimized CPU,inline_1.mtx,,19.913901,3.748141,15.296099
+test-60816.out,naive CPU,F1.mtx,,15.532601,3.499852,14.265012
+test-60835.out,optimized CPU,sx-stackoverflow.mtx,,152.284503,0.95173,4.011957
+test-60828.out,naive CPU,mawi_201512012345.mtx,,47.624901,1.597497,11.069345
+test-60834.out,naive CPU,sx-stackoverflow.mtx,,147.353694,0.983578,4.146207
+test-60829.out,optimized CPU,mawi_201512012345.mtx,,53.165503,1.431015,9.915761
+test-60806.out,SpMV_OneThreadPerRow,crankseg_1.mtx,256,0.249754,85.420319,345.064056
+test-60807.out,SpMV_OneWarpPerRow,crankseg_1.mtx,256,0.111309,191.665237,774.251221
+test-60808.out,SpMV_coalescedBins,crankseg_1.mtx,256,0.537088,39.721664,279.231415
+test-60809.out,SpMV_Hybrid,crankseg_1.mtx,256,0.113971,187.187881,758.0177
+test-60812.out,SpMV_OneThreadPerRow,ecology1.mtx,256,0.083866,142.990707,762.744263
+test-60813.out,SpMV_OneWarpPerRow,ecology1.mtx,256,0.68608,17.479012,93.236938
+test-60814.out,SpMV_coalescedBins,ecology1.mtx,256,0.149606,80.156998,641.309448
+test-60815.out,SpMV_Hybrid,ecology1.mtx,256,0.090522,132.476669,750.848389
+test-60818.out,SpMV_OneThreadPerRow,F1.mtx,256,0.583578,93.152664,382.036407
+test-60819.out,SpMV_OneWarpPerRow,F1.mtx,256,0.400998,135.566147,555.981995
+test-60820.out,SpMV_coalescedBins,F1.mtx,256,1.464115,37.129459,262.723969
+test-60821.out,SpMV_Hybrid,F1.mtx,256,0.495309,109.753387,452.895416
+test-60824.out,SpMV_OneThreadPerRow,inline_1.mtx,256,1.009357,73.948181,303.777405
+test-60825.out,SpMV_OneWarpPerRow,inline_1.mtx,256,0.568832,131.216431,539.034058
+test-60826.out,SpMV_coalescedBins,inline_1.mtx,256,1.99209,37.468246,265.311981
+test-60827.out,SpMV_Hybrid,inline_1.mtx,256,0.639078,116.793358,482.937134
+test-60830.out,SpMV_OneThreadPerRow,mawi_201512012345.mtx,256,849.131465,0.089598,0.708325
+test-60831.out,SpMV_OneWarpPerRow,mawi_201512012345.mtx,256,62.710777,1.213199,9.591031
+test-60832.out,SpMV_coalescedBins,mawi_201512012345.mtx,256,240.195796,0.316744,3.14501
+test-60833.out,SpMV_Hybrid,mawi_201512012345.mtx,256,60.012955,1.267737,11.259996
+test-60836.out,SpMV_OneThreadPerRow,sx-stackoverflow.mtx,256,10.047898,14.42429,61.840485
+test-60837.out,SpMV_OneWarpPerRow,sx-stackoverflow.mtx,256,2.905702,49.879089,213.843933
+test-60838.out,SpMV_coalescedBins,sx-stackoverflow.mtx,256,4.453888,32.540958,234.797165
+test-60839.out,SpMV_Hybrid,sx-stackoverflow.mtx,256,2.187878,66.243988,288.761353
