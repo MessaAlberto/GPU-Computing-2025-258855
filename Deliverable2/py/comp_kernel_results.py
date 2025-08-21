@@ -12,14 +12,16 @@ methods_order = [
     "SpMV_OneThreadPerRow",
     "SpMV_OneWarpPerRow",
     "SpMV_coalescedBins",
-    "SpMV_Hybrid"
+    "SpMV_Hybrid",
+    "cuSPARSE SpMV"
 ]
 
 colors = {
     "SpMV_OneThreadPerRow": "tab:green",
     "SpMV_OneWarpPerRow": "tab:red",
     "SpMV_coalescedBins": "tab:purple",
-    "SpMV_Hybrid": "tab:brown"
+    "SpMV_Hybrid": "tab:brown",
+    "cuSPARSE SpMV": "tab:orange"
 }
 
 records = []

@@ -17,17 +17,19 @@ MTX_FOLDER := mtx
 
 # Files
 MAIN_SRC := $(SRC_FOLDER)/main.cu
+CUPARSE_SRC := $(SRC_FOLDER)/cuparse.cu
 
 LIB_SRC := $(wildcard $(LIB_FOLDER)/*.c)
 LIB_OBJ := $(patsubst $(LIB_FOLDER)/%.c, $(OBJ_FOLDER)/%.o, $(LIB_SRC))
 
 KERNEL_VERSIONS := 1 2 3 4
 KERNEL_BIN := $(addprefix $(BIN_FOLDER)/kernel_v, $(KERNEL_VERSIONS))
+CUPARSE_BIN := $(BIN_FOLDER)/cuparse
 
 .PRECIOUS: $(OBJ_FOLDER)/%.o
 
 # Rules
-all: chmod create_dir $(KERNEL_BIN)
+all: chmod create_dir $(KERNEL_BIN) $(CUPARSE_BIN)
 
 chmod:
 	@chmod +x $(wildcard script/*)
@@ -41,6 +43,10 @@ $(OBJ_FOLDER)/%.o: $(LIB_FOLDER)/%.c
 $(BIN_FOLDER)/kernel_v%: $(MAIN_SRC) $(LIB_OBJ)
 	module load CUDA/12.1.1 && \
 	$(NVCC) $(NVCC_FLAGS) -DSELECT_KERNEL=$* $< -o $@ $(LIB_OBJ) $(LIB_FLAGS)
+
+$(CUPARSE_BIN): $(CUPARSE_SRC) $(LIB_OBJ)
+	module load CUDA/12.1.1 && \
+	$(NVCC) $(NVCC_FLAGS) $< -o $@ $(LIB_OBJ) $(LIB_FLAGS) -lcusparse
 
 download:
 	mkdir -p $(MTX_FOLDER)

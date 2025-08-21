@@ -11,12 +11,11 @@ records = []
 
 # Regex patterns for methods
 method_patterns = {
-    "naive CPU": re.compile(r"Using naive CPU SpMV"),
-    "optimized CPU": re.compile(r"Using Optimized CPU SpMV"),
     "SpMV_OneThreadPerRow": re.compile(r"Using kernel:\s+SpMV_OneThreadPerRow"),
     "SpMV_OneWarpPerRow": re.compile(r"Using kernel:\s+SpMV_OneWarpPerRow"),
     "SpMV_coalescedBins": re.compile(r"Using kernel:\s+SpMV_coalescedBins"),
-    "SpMV_Hybrid": re.compile(r"Using kernel:\s+SpMV_Hybrid")
+    "SpMV_Hybrid": re.compile(r"Using kernel:\s+SpMV_Hybrid"),
+    "cuSPARSE SpMV": re.compile(r"Using kernel:\s+cuSPARSE SpMV")
 }
 
 for filename in os.listdir(input_dir):
