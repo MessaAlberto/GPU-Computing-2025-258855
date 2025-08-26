@@ -1,0 +1,31 @@
+filename,method,matrix,block_size,mean_time_ms,gflops,bandwidth_gbps
+test-62352.out,SpMV_coalescedBins,crankseg_1.mtx,256,0.118272,180.381042,730.342468
+test-62353.out,SpMV_coalescedBins,ecology1.mtx,256,0.484454,24.75362,132.434387
+test-62354.out,SpMV_coalescedBins,F1.mtx,256,0.41513,130.951401,539.614502
+test-62355.out,SpMV_coalescedBins,inline_1.mtx,256,0.56576,131.928909,544.560364
+test-62356.out,SpMV_coalescedBins,mawi_201512012345.mtx,256,693.114929,0.109766,0.868741
+test-62357.out,SpMV_coalescedBins,sx-stackoverflow.mtx,256,3.163136,45.819653,196.864777
+test-62358.out,cuSPARSE SpMV,crankseg_1.mtx,256,0.11776,181.165298,731.835632
+test-62359.out,cuSPARSE SpMV,ecology1.mtx,256,0.127386,94.139359,502.160309
+test-62360.out,cuSPARSE SpMV,F1.mtx,256,0.277402,195.967911,803.700806
+test-62361.out,cuSPARSE SpMV,inline_1.mtx,256,0.375194,198.937592,817.231018
+test-62362.out,cuSPARSE SpMV,mawi_201512012345.mtx,256,25.483162,2.985526,23.602291
+test-62363.out,cuSPARSE SpMV,sx-stackoverflow.mtx,256,1.613005,89.853294,385.223175
+test-62364.out,SpMV_Hybrid,crankseg_1.mtx,256,0.103117,206.891861,835.760742
+test-62365.out,SpMV_Hybrid,ecology1.mtx,256,0.083968,142.816315,761.814026
+test-62367.out,SpMV_Hybrid,inline_1.mtx,256,0.606106,123.147026,505.885101
+test-62366.out,SpMV_Hybrid,F1.mtx,256,0.453018,119.999329,492.139587
+test-62368.out,SpMV_Hybrid,mawi_201512012345.mtx,256,31.564596,2.410316,19.054924
+test-62369.out,SpMV_Hybrid,sx-stackoverflow.mtx,256,2.032845,71.296043,305.663696
+test-62370.out,SpMV_OneThreadPerRow,crankseg_1.mtx,256,0.190874,111.770447,451.508118
+test-62371.out,SpMV_OneThreadPerRow,ecology1.mtx,256,0.080794,148.427597,791.74585
+test-62373.out,SpMV_OneThreadPerRow,inline_1.mtx,256,0.513126,145.461441,597.552246
+test-62372.out,SpMV_OneThreadPerRow,F1.mtx,256,0.388915,139.778046,573.255737
+test-62374.out,SpMV_OneThreadPerRow,mawi_201512012345.mtx,256,479.256561,0.158747,1.254987
+test-62375.out,SpMV_OneThreadPerRow,sx-stackoverflow.mtx,256,5.929267,24.443794,104.796562
+test-62376.out,SpMV_OneWarpPerRow,crankseg_1.mtx,256,0.101683,209.808762,847.543823
+test-62377.out,SpMV_OneWarpPerRow,ecology1.mtx,256,0.641741,18.686668,99.678856
+test-62378.out,SpMV_OneWarpPerRow,F1.mtx,256,0.370278,146.813324,602.108765
+test-62379.out,SpMV_OneWarpPerRow,inline_1.mtx,256,0.503603,148.212143,608.852051
+test-62380.out,SpMV_OneWarpPerRow,mawi_201512012345.mtx,256,81.382912,0.934848,7.390507
+test-62381.out,SpMV_OneWarpPerRow,sx-stackoverflow.mtx,256,3.760538,38.540707,165.233505

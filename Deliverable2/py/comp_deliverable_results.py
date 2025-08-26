@@ -59,7 +59,11 @@ for key in data_d1_dict:
 
 matrices_order = sorted(improvements.keys())
 
-def plot_bar_metric(metric_key, ylabel, title, filename):
+max_perc=35     # Maximum percentage for clipping
+main_height=30   # Main height for the bars
+fade_height=5    # Fade height for the bars
+
+def plot_bar_metric(metric_key, ylabel, title, filename, clip_percent=max_perc, main_height=main_height, fade_height=fade_height):
     matrices = [m for m in matrices_order if m in improvements]
     num_methods = len(methods_order)
     num_matrices = len(matrices)
@@ -71,13 +75,38 @@ def plot_bar_metric(metric_key, ylabel, title, filename):
     for i, method in enumerate(methods_order):
         values = [improvements[m][method][metric_key] for m in matrices]
         offset = (i - (num_methods - 1) / 2) * bar_width
-        ax.bar(x + offset, values, width=bar_width*0.9, label=method, color=colors[method])
+
+        clipped_values = np.clip(values, -clip_percent, clip_percent)
+        bars = ax.bar(x + offset, np.clip(clipped_values, -main_height, main_height),
+                      width=bar_width*0.9, label=method, color=colors[method])
+
+        for idx, (bar, val) in enumerate(zip(bars, values)):
+            bar_x = x[idx] + offset
+            bar_w = bar.get_width()
+            if val > main_height:
+                n = 20
+                grad = np.linspace(1.0, 0, n)
+                for j, a in enumerate(grad):
+                    ax.bar(bar_x, fade_height/n, width=bar_w,
+                        bottom=main_height + j*fade_height/n, color=colors[method], alpha=a)
+                ax.text(bar_x, main_height + fade_height*1.05,
+                        f'{val:.0f}%', ha='center', va='bottom', fontsize=8)
+            elif val < -main_height:
+                n = 20
+                grad = np.linspace(1.0, 0, n)
+                for j, a in enumerate(grad):
+                    ax.bar(bar_x, -fade_height/n, width=bar_w,
+                        bottom=-main_height - j*fade_height/n, color=colors[method], alpha=a)
+                ax.text(bar_x, -main_height - fade_height*1.05,
+                        f'{val:.0f}%', ha='center', va='top', fontsize=8)
+
 
     ax.set_xticks(x)
     ax.set_xticklabels(matrices, rotation=45, ha='right')
     ax.set_ylabel(ylabel)
     ax.set_title(title)
     ax.axhline(0, color='black', linewidth=0.8)
+    ax.set_ylim(-(main_height + fade_height)*1.2, (main_height + fade_height)*1.2)
     ax.legend()
     ax.grid(axis='y', linestyle='--', alpha=0.7)
     plt.tight_layout()
