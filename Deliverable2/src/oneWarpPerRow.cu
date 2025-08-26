@@ -1,7 +1,9 @@
-#include <cusparse.h>
-
 #include "../include/mtx_utils.h"
 #include "../include/test_utils.h"
+
+#define KERNEL SpMV_OneWarpPerRow
+#define KERNEL_NAME "SpMV_OneWarpPerRow"
+#define KERNEL_PARAMS matrix.nrows, matrix.row_ptr, matrix.col_idx, matrix.values, vec, result
 
 // ===================== Helpers & safety =====================
 #define CUDA_CHECK(stmt)                                            \
@@ -14,13 +16,13 @@
     }                                                               \
   } while (0)
 
-#define CUSPARSE_CHECK(stmt)                                                   \
-  do {                                                                         \
-    cusparseStatus_t _err = (stmt);                                            \
-    if (_err != CUSPARSE_STATUS_SUCCESS) {                                     \
-      fprintf(stderr, "cuSPARSE Error %s:%d: %d\n", __FILE__, __LINE__, _err); \
-      return 1;                                                                \
-    }                                                                          \
+#define CUDA_CHECK_KERNEL()                                           \
+  do {                                                                \
+    cudaError_t err = cudaGetLastError();                             \
+    if (err != cudaSuccess) {                                         \
+      fprintf(stderr, "Kernel error: %s\n", cudaGetErrorString(err)); \
+      return 1;                                                       \
+    }                                                                 \
   } while (0)
 
 #ifndef WARP_SIZE
@@ -31,8 +33,37 @@
 #define BLOCK_DIM 256
 #endif
 
-// ===================== Main =====================
+// ===================== Kernel =====================
+__global__ void SpMV_OneWarpPerRow(const int rows, const int *__restrict__ row_ptr,
+                                   const int *__restrict__ col_idx,
+                                   const double *__restrict__ values,
+                                   const double *__restrict__ vec,
+                                   double *__restrict__ result) {
+  const int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  const int lane = threadIdx.x & (WARP_SIZE - 1);
+  const int warps_per_grid = (gridDim.x * blockDim.x) / WARP_SIZE;
 
+  for (int warp = tid / WARP_SIZE; warp < rows; warp += warps_per_grid) {
+    const int start = row_ptr[warp];
+    const int end = row_ptr[warp + 1];
+
+    double sum = 0.0;
+#pragma unroll 4
+    for (int j = start + lane; j < end; j += WARP_SIZE) {
+      sum += values[j] * __ldg(&vec[col_idx[j]]);
+    }
+
+    sum += __shfl_down_sync(0xFFFFFFFF, sum, 16);
+    sum += __shfl_down_sync(0xFFFFFFFF, sum, 8);
+    sum += __shfl_down_sync(0xFFFFFFFF, sum, 4);
+    sum += __shfl_down_sync(0xFFFFFFFF, sum, 2);
+    sum += __shfl_down_sync(0xFFFFFFFF, sum, 1);
+
+    if (lane == 0) result[warp] = sum;
+  }
+}
+
+// ===================== Main =====================
 int main(int argc, char **argv) {
   if (argc != 2) {
     printf("Usage: %s <matrix_file>\n", argv[0]);
@@ -41,6 +72,10 @@ int main(int argc, char **argv) {
 
   int device = 0;
   CUDA_CHECK(cudaGetDevice(&device));
+
+  cudaDeviceProp prop{};
+  CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
+  const int SM = prop.multiProcessorCount;
 
   double finalResult = 0.0;
   float times[REP] = {0.0f};
@@ -53,6 +88,11 @@ int main(int argc, char **argv) {
   CSR_matrix matrix{};
   double *vec = nullptr;
   double *result = nullptr;
+
+  // Matrix statistics
+  int max_nnz = 0;
+  int min_nnz = INT_MAX;
+  double avg_nnzPerRow = 0.0;
 
   // Read the matrix from file
   read_COO_mtx(argv[1], &coo_matrix);
@@ -74,6 +114,16 @@ int main(int argc, char **argv) {
   free(coo_matrix.values);
   init_RandVector(vec, matrix.ncols);
 
+  // Advise CUDA on memory usage
+  CUDA_CHECK(cudaMemAdvise(matrix.values, matrix.nnz * sizeof(double),
+                           cudaMemAdviseSetPreferredLocation, device));
+  CUDA_CHECK(cudaMemAdvise(matrix.col_idx, matrix.nnz * sizeof(int),
+                           cudaMemAdviseSetPreferredLocation, device));
+  CUDA_CHECK(cudaMemAdvise(matrix.row_ptr, (matrix.nrows + 1) * sizeof(int),
+                           cudaMemAdviseSetReadMostly, device));
+  CUDA_CHECK(
+      cudaMemAdvise(vec, matrix.ncols * sizeof(double), cudaMemAdviseSetReadMostly, device));
+
   // Prefetch data to the GPU
   CUDA_CHECK(cudaMemPrefetchAsync(matrix.row_ptr, (matrix.nrows + 1) * sizeof(int), device));
   CUDA_CHECK(cudaMemPrefetchAsync(matrix.col_idx, matrix.nnz * sizeof(int), device));
@@ -82,60 +132,33 @@ int main(int argc, char **argv) {
   CUDA_CHECK(cudaMemPrefetchAsync(result, matrix.nrows * sizeof(double), device));
   CUDA_CHECK(cudaDeviceSynchronize());
 
-  // --- cuSPARSE setup ---
-  cusparseHandle_t handle;
-  CUSPARSE_CHECK(cusparseCreate(&handle));
+  // Set the number of blocks and threads
+  int gridDim = 0;
+  const long long total_warps = matrix.nrows;
+  const long long total_threads = total_warps * WARP_SIZE;
+  gridDim =
+      (int)MIN((total_threads + BLOCK_DIM - 1) / (long long)BLOCK_DIM, (long long)SM * 8);
 
-  cusparseSpMatDescr_t matA;
-  cusparseDnVecDescr_t vecX, vecY;
-  void *dBuffer = NULL;
-  size_t bufferSize = 0;
-
-  // Create sparse matrix A in CSR format
-  CUSPARSE_CHECK(cusparseCreateCsr(&matA, matrix.nrows, matrix.ncols, matrix.nnz,
-                                   matrix.row_ptr, matrix.col_idx, matrix.values,
-                                   CUSPARSE_INDEX_32I, CUSPARSE_INDEX_32I,
-                                   CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F));
-
-  // Create dense vectors x and y
-  CUSPARSE_CHECK(cusparseCreateDnVec(&vecX, matrix.ncols, vec, CUDA_R_64F));
-  CUSPARSE_CHECK(cusparseCreateDnVec(&vecY, matrix.nrows, result, CUDA_R_64F));
-
-  const double alpha = 1.0;
-  const double beta = 0.0;
-
-  // Query buffer size
-  CUSPARSE_CHECK(cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
-                                         matA, vecX, &beta, vecY, CUDA_R_64F,
-                                         CUSPARSE_SPMV_ALG_DEFAULT, &bufferSize));
-  CUDA_CHECK(cudaMalloc(&dBuffer, bufferSize));
-
-  printf("Using kernel: \t\tcuSPARSE SpMV\n");
+  printf("Using kernel: \t\t%s\n", KERNEL_NAME);
   printf("Using matrix: \t\t%s\n", argv[1]);
   printf("Using block size: \t%d\n\n", BLOCK_DIM);
-  int dummy_max, dummy_min;
-  double dummy_avg;
-  print_mtx_stats(&matrix, &dummy_max, &dummy_min, &dummy_avg);
+  print_mtx_stats(&matrix, &max_nnz, &min_nnz, &avg_nnzPerRow);
   fflush(stdout);
 
-  // Warm up
   for (int i = 0; i < WARM_UP; ++i) {
-    CUSPARSE_CHECK(cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA, vecX,
-                                &beta, vecY, CUDA_R_64F, CUSPARSE_SPMV_ALG_DEFAULT, dBuffer));
+    KERNEL<<<gridDim, BLOCK_DIM>>>(KERNEL_PARAMS);
     CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK_KERNEL();
   }
-
-  // Benchmarking phase
   for (int i = 0; i < REP; ++i) {
     CUDA_CHECK(cudaEventRecord(start));
-    CUSPARSE_CHECK(cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA, vecX,
-                                &beta, vecY, CUDA_R_64F, CUSPARSE_SPMV_ALG_DEFAULT, dBuffer));
+    KERNEL<<<gridDim, BLOCK_DIM>>>(KERNEL_PARAMS);
     CUDA_CHECK(cudaEventRecord(stop));
     CUDA_CHECK(cudaEventSynchronize(stop));
-
+    CUDA_CHECK_KERNEL();
     float ms = 0.f;
     CUDA_CHECK(cudaEventElapsedTime(&ms, start, stop));
-    times[i] = ms * 1e-3f;  // Convert to seconds
+    times[i] = ms * 1e-3f;
   }
 
   // Calculate results
@@ -143,15 +166,18 @@ int main(int argc, char **argv) {
   const float flopCount = 2.0f * (float)matrix.nnz;
   const float gflops = calculate_GFlops(flopCount, meanTime);
 
-  // Bandwidth calculation (similar to your custom kernels)
+  // Bandwidth calculation based on the worst-case scenario
   const int Bd = sizeof(double);  // 8 bytes
   const int Bi = sizeof(int);     // 4 bytes
-  size_t readBytes = (size_t)matrix.nrows * (Bi + Bi) + (size_t)matrix.nnz * (Bi + Bd + Bi);
-  size_t writeBytes = (size_t)matrix.nrows * Bd;
+
+  size_t readBytes = (size_t)matrix.nrows * (Bi + Bi)        // row_ptr[row], row_ptr[row+1]
+                     + (size_t)matrix.nnz * (Bi + Bd + Bi);  // col_idx, values, vec
+  size_t writeBytes = (size_t)matrix.nrows * Bd;             // result[row]
+
   const size_t totalBytes = readBytes + writeBytes;
   const float bandwidthGBs = (float)totalBytes / (meanTime * 1e9f);
 
-  // Result sum
+  // Copy result
   CUDA_CHECK(cudaMemPrefetchAsync(result, matrix.nrows * sizeof(double), cudaCpuDeviceId));
   CUDA_CHECK(cudaDeviceSynchronize());
   for (int r = 0; r < matrix.nrows; ++r) finalResult += result[r];
@@ -163,16 +189,11 @@ int main(int argc, char **argv) {
 
   CUDA_CHECK(cudaEventDestroy(start));
   CUDA_CHECK(cudaEventDestroy(stop));
-  CUDA_CHECK(cudaFree(dBuffer));
   CUDA_CHECK(cudaFree(matrix.row_ptr));
   CUDA_CHECK(cudaFree(matrix.col_idx));
   CUDA_CHECK(cudaFree(matrix.values));
   CUDA_CHECK(cudaFree(vec));
   CUDA_CHECK(cudaFree(result));
-  CUSPARSE_CHECK(cusparseDestroySpMat(matA));
-  CUSPARSE_CHECK(cusparseDestroyDnVec(vecX));
-  CUSPARSE_CHECK(cusparseDestroyDnVec(vecY));
-  CUSPARSE_CHECK(cusparseDestroy(handle));
   CUDA_CHECK(cudaDeviceReset());
 
   return 0;
