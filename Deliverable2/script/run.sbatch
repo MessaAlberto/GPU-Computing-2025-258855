@@ -5,7 +5,7 @@
 #SBATCH --account=vella.edu
 #SBATCH --nodes=1
 #SBATCH --tasks=1
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:a30.24:1
 #SBATCH --cpus-per-task=1
 #SBATCH --time=00:05:00
 #SBATCH --job-name=test
@@ -16,6 +16,5 @@ module load CUDA/12.3.2
 
 EXEC=$1
 MTX_FILE=$2
-BLOCK_SIZE=$3
 
-srun ./bin/$EXEC $MTX_FILE $BLOCK_SIZE
+srun ./bin/$EXEC $MTX_FILE

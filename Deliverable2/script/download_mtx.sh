@@ -15,7 +15,7 @@ for link in "${links[@]}"; do
   filename=$(basename "$link")
   foldername="${filename%%.*}"
   expected_mtx="${foldername}.mtx"
-
+  
   echo "$filename"
   echo "$foldername"
   echo "$expected_mtx"
@@ -31,7 +31,7 @@ for link in "${links[@]}"; do
     echo "$mtx_dir/$expected_mtx already exists, skipping download."
     continue
   fi
-
+  
   # Decompress the file
   if [[ "$filename" == *.tar.gz ]]; then
     echo "Decompressing $filename..."
@@ -42,7 +42,7 @@ for link in "${links[@]}"; do
     fi
     filename="${filename%.gz}"
   fi
-
+  
   # Extract the tar file
   if [[ "$filename" == *.tar ]]; then
     echo "Extracting $filename..."
@@ -53,7 +53,7 @@ for link in "${links[@]}"; do
     fi
     rm "$filename"
   fi
-
+  
   # Move the extracted files to the mtx directory
   if [ -d "$foldername" ]; then
     echo "Moving files to $mtx_dir..."

@@ -109,35 +109,37 @@ void init_RandVector(double* vec, int n) {
   srand(52);  // Seed for reproducibility
 
   for (int i = 0; i < n; i++) {
-    double val = ((double)rand() / RAND_MAX) * 200.0 - 100.0; // random value between -100 and 100
-    double scale = pow(10.0, rand() % 7 - 3); // scale between 0.001 and 1000
+    double val =
+        ((double)rand() / RAND_MAX) * 200.0 - 100.0;  // random value between -100 and 100
+    double scale = pow(10.0, rand() % 7 - 3);         // scale between 0.001 and 1000
     vec[i] = val * scale;
   }
 }
 
-void print_mtx_stats(CSR_matrix* matrix) {
+void print_mtx_stats(CSR_matrix* matrix, int* max_nnz, int* min_nnz, double* avg_nnzPerRow) {
   printf("Matrix Statistics:\n");
   printf("  Rows: %d\n", matrix->nrows);
   printf("  Columns: %d\n", matrix->ncols);
   printf("  Non-zeros: %d\n", matrix->nnz);
 
-  double avg_nnzPerRow = (double)matrix->nnz / matrix->nrows;
-  int max_nnz = 0;
-  int min_nnz = matrix->nnz;
+  *avg_nnzPerRow = (double)matrix->nnz / matrix->nrows;
+  *max_nnz = 0;
+  *min_nnz = matrix->nnz;
 
   for (int i = 0; i < matrix->nrows; i++) {
     int nnz = matrix->row_ptr[i + 1] - matrix->row_ptr[i];
-    max_nnz = (nnz > max_nnz) ? nnz : max_nnz;
-    min_nnz = (nnz < min_nnz) ? nnz : min_nnz;
+    *max_nnz = (nnz > *max_nnz) ? nnz : *max_nnz;
+    *min_nnz = (nnz < *min_nnz) ? nnz : *min_nnz;
   }
 
-  printf("  Avg non-zeros per row: %.2f\n", avg_nnzPerRow);
-  printf("  Min non-zeros in a row: %d\n", min_nnz);
-  printf("  Max non-zeros in a row: %d\n", max_nnz);
+  printf("  Avg non-zeros per row: %.2f\n", *avg_nnzPerRow);
+  printf("  Min non-zeros in a row: %d\n", *min_nnz);
+  printf("  Max non-zeros in a row: %d\n", *max_nnz);
   printf("\n");
 }
 
-int build_coalesced_row_bins(const int* row_ptr, const int rows, int* bin_rows, int warp_size) {
+int build_coalesced_row_bins(const int* row_ptr, const int rows, int* bin_rows,
+                             int warp_size) {
   int bin_nnz_target = warp_size * 2;
   int num_bins = 0;
   int nnz_count = 0;
@@ -162,17 +164,41 @@ int build_coalesced_row_bins(const int* row_ptr, const int rows, int* bin_rows, 
   return num_bins;
 }
 
-void classify_rows(int* row_ptr, int rows, int* short_rows, int* long_rows, int* short_count, int* long_count, int threshold) {
+void classify_rows(int* row_ptr, int rows, int* short_rows, int* medium_rows, int* long_rows,
+                   int* short_count, int* medium_count, int* long_count, int short_threshold,
+                   int medium_threshold) {
   *short_count = 0;
+  *medium_count = 0;
   *long_count = 0;
 
   for (int i = 0; i < rows; ++i) {
     int nnz = row_ptr[i + 1] - row_ptr[i];
 
-    if (nnz < threshold) {
+    if (nnz < short_threshold) {
       short_rows[(*short_count)++] = i;
+    } else if (nnz < medium_threshold) {
+      medium_rows[(*medium_count)++] = i;
     } else {
       long_rows[(*long_count)++] = i;
     }
   }
+}
+
+int suggest_minBlocksPerSM(const CSR_matrix* matrix, int block_dim, int max_nnz,
+                           double avg_nnz_per_row) {
+  int minBlocksPerSM = 1;
+
+  if (avg_nnz_per_row < 8 && max_nnz < 16) {
+    // Very light workload per row
+    minBlocksPerSM = 0;  // Just used as a placeholder
+  } else if (avg_nnz_per_row < 64) {
+    // Moderate workload
+    minBlocksPerSM = 2;
+  } else if (avg_nnz_per_row < 512 || max_nnz < 2048) {
+    // Heavy workload
+    minBlocksPerSM = 3;
+  }
+
+  printf("Suggested __launch_bounds__(%d, %d)\n", block_dim, minBlocksPerSM);
+  return minBlocksPerSM;
 }

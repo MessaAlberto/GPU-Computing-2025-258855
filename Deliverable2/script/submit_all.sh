@@ -1,12 +1,12 @@
 #!/bin/bash
 
 MTX_DIR="./mtx"
+BIN_DIR="./bin"
 
-
-for matrix in "$MTX_DIR"/*.mtx; do
-  sbatch script/run.sbatch cuparse "$matrix" 256
-
-  for i in {1..4}; do
-    sbatch script/run.sbatch kernel_v"$i" "$matrix" 256
+for exe in "$BIN_DIR"/*; do
+  exe_name=$(basename "$exe")
+  
+  for matrix in "$MTX_DIR"/*.mtx; do
+    sbatch script/run.sbatch "$exe_name" "$matrix"
   done
 done

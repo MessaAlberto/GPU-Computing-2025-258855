@@ -17,6 +17,6 @@ float geometric_mean(float* times, int n) {
 }
 
 float calculate_GFlops(int n, float time) {
-  float res = (2.0f * n) / (time * 1e9); // GFlops
+  float res = (2.0f * n) / (time * 1e9);  // GFlops
   return res;
 }
