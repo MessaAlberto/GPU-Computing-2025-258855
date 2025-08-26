@@ -2,10 +2,9 @@
 
 #SBATCH --partition=edu-short
 #SBATCH --nodelist=edu01
-#SBATCH --account=vella.edu
 #SBATCH --nodes=1
 #SBATCH --tasks=1
-#SBATCH --gres=gpu:a30.24:1
+#SBATCH --gres=0
 #SBATCH --cpus-per-task=1
 #SBATCH --time=00:05:00
 #SBATCH --job-name=test

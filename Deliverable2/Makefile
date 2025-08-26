@@ -16,20 +16,19 @@ ERR_FOLDER := output_err
 MTX_FOLDER := mtx
 
 # Files
-MAIN_SRC := $(SRC_FOLDER)/main.cu
 CUPARSE_SRC := $(SRC_FOLDER)/cuparse.cu
+CUDA_SRCS := $(filter-out $(CUPARSE_SRC), $(wildcard $(SRC_FOLDER)/*.cu))
 
 LIB_SRC := $(wildcard $(LIB_FOLDER)/*.c)
 LIB_OBJ := $(patsubst $(LIB_FOLDER)/%.c, $(OBJ_FOLDER)/%.o, $(LIB_SRC))
 
-KERNEL_VERSIONS := 1 2 3 4
-KERNEL_BIN := $(addprefix $(BIN_FOLDER)/kernel_v, $(KERNEL_VERSIONS))
+CUDA_BINS := $(patsubst $(SRC_FOLDER)/%.cu, $(BIN_FOLDER)/%, $(CUDA_SRCS))
 CUPARSE_BIN := $(BIN_FOLDER)/cuparse
 
 .PRECIOUS: $(OBJ_FOLDER)/%.o
 
 # Rules
-all: chmod create_dir $(KERNEL_BIN) $(CUPARSE_BIN)
+all: chmod create_dir $(CUDA_BINS) $(CUPARSE_BIN)
 
 chmod:
 	@chmod +x $(wildcard script/*)
@@ -40,9 +39,9 @@ create_dir:
 $(OBJ_FOLDER)/%.o: $(LIB_FOLDER)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BIN_FOLDER)/kernel_v%: $(MAIN_SRC) $(LIB_OBJ)
+$(BIN_FOLDER)/%: $(SRC_FOLDER)/%.cu $(LIB_OBJ)
 	module load CUDA/12.1.1 && \
-	$(NVCC) $(NVCC_FLAGS) -DSELECT_KERNEL=$* $< -o $@ $(LIB_OBJ) $(LIB_FLAGS)
+	$(NVCC) $(NVCC_FLAGS) $< -o $@ $(LIB_OBJ) $(LIB_FLAGS)
 
 $(CUPARSE_BIN): $(CUPARSE_SRC) $(LIB_OBJ)
 	module load CUDA/12.1.1 && \
