@@ -126,4 +126,7 @@ All generated plots are saved in the `./results/` directory.
 ## Notes
 A detailed analysis of the project, including implementation choices and performance evaluation, is available in the [project report](./Deliverable2_report.pdf).
 
+
+During the development of the project, the plot [`bandwidth_minBlockPerSM_plot.png`](./img/bandwidth_minBlockPerSM_plot.png) was generated. This plot was created by running experiments on various launch-bound implementations (modifying the `minBlockPerSM` parameter). Based on the results, the conditions for the function [`suggest_minBlocksPerSM`](./lib/mtx_utils.c) in `.lib/mtx_utils.c` were determined.
+
 ---

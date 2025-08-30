@@ -186,19 +186,16 @@ void classify_rows(int* row_ptr, int rows, int* short_rows, int* medium_rows, in
 
 int suggest_minBlocksPerSM(const CSR_matrix* matrix, int block_dim, int max_nnz,
                            double avg_nnz_per_row) {
-  int minBlocksPerSM = 1;
+    int minBlocksPerSM = 0; // Default for heavy workload
 
-  if (avg_nnz_per_row < 8 && max_nnz < 16) {
-    // Very light workload per row
-    minBlocksPerSM = 0;  // Just used as a placeholder
-  } else if (avg_nnz_per_row < 64) {
-    // Moderate workload
-    minBlocksPerSM = 2;
-  } else if (avg_nnz_per_row < 512 || max_nnz < 2048) {
-    // Heavy workload
-    minBlocksPerSM = 3;
-  }
-
-  printf("Suggested __launch_bounds__(%d, %d)\n", block_dim, minBlocksPerSM);
-  return minBlocksPerSM;
+    if (avg_nnz_per_row < 8) {
+      minBlocksPerSM = 0;
+    } else if (avg_nnz_per_row > 64) {
+      minBlocksPerSM = 1;
+    } else {    // Avg > 8 and < 64
+      minBlocksPerSM = 2;
+    }
+    printf("Suggested __launch_bounds__(%d, %d)\n", block_dim, minBlocksPerSM);
+    return minBlocksPerSM;
 }
+

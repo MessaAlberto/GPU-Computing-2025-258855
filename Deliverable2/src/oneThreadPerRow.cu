@@ -17,7 +17,7 @@
     }                                                               \
   } while (0)
 
-#define CUDA_CHECK_SpMV_OneThreadPerRow()                                           \
+#define CUDA_CHECK_KERNEL()                                           \
   do {                                                                              \
     cudaError_t err = cudaGetLastError();                                           \
     if (err != cudaSuccess) {                                                       \
@@ -180,7 +180,7 @@ int main(int argc, char **argv) {
         break;
     }
     CUDA_CHECK(cudaDeviceSynchronize());
-    CUDA_CHECK_SpMV_OneThreadPerRow();
+    CUDA_CHECK_KERNEL();
   }
 
   // Benchmarking phase
@@ -205,7 +205,7 @@ int main(int argc, char **argv) {
     }
     CUDA_CHECK(cudaEventRecord(stop));
     CUDA_CHECK(cudaEventSynchronize(stop));
-    CUDA_CHECK_SpMV_OneThreadPerRow();
+    CUDA_CHECK_KERNEL();
 
     float ms = 0.f;
     CUDA_CHECK(cudaEventElapsedTime(&ms, start, stop));
